@@ -252,6 +252,19 @@ def link_project_to_customer(project_id: str, customer_id: str):
     conn.close()
 
 
+def get_project_github_token(project_id: str) -> str | None:
+    """Get the GitHub token for a project via its linked customer."""
+    conn = get_db()
+    row = conn.execute("""
+        SELECT c.github_token FROM customers c
+        JOIN project_customers pc ON c.id = pc.customer_id
+        WHERE pc.project_id = ? AND c.github_token IS NOT NULL
+        LIMIT 1
+    """, (project_id,)).fetchone()
+    conn.close()
+    return row["github_token"] if row else None
+
+
 def get_customer_projects(customer_id: str) -> list[dict]:
     conn = get_db()
     rows = conn.execute("""

@@ -80,7 +80,7 @@ async def sitemap():
 async def terms():
     return HTMLResponse(_legal_page("Terms of Service", """
 <p><strong>Last updated:</strong> February 20, 2026</p>
-<p>These Terms of Service govern your use of Tome ("the Service"), operated by Crucible AI.</p>
+<p>These Terms of Service govern your use of Tome ("the Service"), operated by Tome HQ.</p>
 
 <h2>1. Service Description</h2>
 <p>Tome is an autonomous documentation maintenance service that monitors code repositories and generates documentation updates via pull requests.</p>
@@ -101,7 +101,7 @@ async def terms():
 <p>We aim for high availability but do not guarantee uptime. The Service is provided "as is" without warranties of any kind.</p>
 
 <h2>7. Limitation of Liability</h2>
-<p>Crucible AI shall not be liable for any indirect, incidental, or consequential damages arising from your use of the Service. Our total liability is limited to the amount you paid for the Service in the 12 months preceding the claim.</p>
+<p>Tome HQ shall not be liable for any indirect, incidental, or consequential damages arising from your use of the Service. Our total liability is limited to the amount you paid for the Service in the 12 months preceding the claim.</p>
 
 <h2>8. Changes to Terms</h2>
 <p>We may update these terms. Continued use after changes constitutes acceptance. We will notify users of material changes via email.</p>
@@ -115,7 +115,7 @@ async def terms():
 async def privacy():
     return HTMLResponse(_legal_page("Privacy Policy", """
 <p><strong>Last updated:</strong> February 20, 2026</p>
-<p>This Privacy Policy describes how Crucible AI ("we") collects, uses, and protects your information when you use Tome ("the Service").</p>
+<p>This Privacy Policy describes how Tome HQ ("we") collects, uses, and protects your information when you use Tome ("the Service").</p>
 
 <h2>1. Information We Collect</h2>
 <ul>

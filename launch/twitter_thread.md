@@ -48,7 +48,5 @@ Different category entirely.
 ## Tweet 6 (CTA)
 Pricing starts at $9/mo. 14-day free trial on every plan.
 
-Built this entire thing — code, infra, billing, legal — in a single afternoon session.
-
 If your docs are always falling behind your code, give it a try:
 https://tomehq.net

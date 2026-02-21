@@ -2,6 +2,9 @@
 
 Handles all GitHub interactions: reading repos, getting diffs,
 creating branches, committing files, and opening PRs.
+
+All functions accept an optional `token` param. If not provided,
+falls back to Config.GITHUB_TOKEN (for backward compat / dev).
 """
 import httpx
 import base64
@@ -31,27 +34,27 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
     return hmac.compare_digest(expected, signature)
 
 
-async def get_repo_info(owner: str, repo: str) -> dict:
+async def get_repo_info(owner: str, repo: str, token: str = None) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(f"{API}/repos/{owner}/{repo}", headers=_headers())
+        resp = await client.get(f"{API}/repos/{owner}/{repo}", headers=_headers(token))
         resp.raise_for_status()
         return resp.json()
 
 
-async def get_compare(owner: str, repo: str, base: str, head: str) -> dict:
+async def get_compare(owner: str, repo: str, base: str, head: str, token: str = None) -> dict:
     """Get diff between two commits."""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{API}/repos/{owner}/{repo}/compare/{base}...{head}",
-            headers=_headers()
+            headers=_headers(token)
         )
         resp.raise_for_status()
         return resp.json()
 
 
-async def get_commit_diff(owner: str, repo: str, sha: str) -> str:
+async def get_commit_diff(owner: str, repo: str, sha: str, token: str = None) -> str:
     """Get the patch/diff for a specific commit."""
-    headers = _headers()
+    headers = _headers(token)
     headers["Accept"] = "application/vnd.github.v3.diff"
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
@@ -62,9 +65,9 @@ async def get_commit_diff(owner: str, repo: str, sha: str) -> str:
         return resp.text
 
 
-async def get_push_diff(owner: str, repo: str, before: str, after: str) -> str:
+async def get_push_diff(owner: str, repo: str, before: str, after: str, token: str = None) -> str:
     """Get combined diff for a push (multiple commits)."""
-    headers = _headers()
+    headers = _headers(token)
     headers["Accept"] = "application/vnd.github.v3.diff"
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
@@ -75,7 +78,7 @@ async def get_push_diff(owner: str, repo: str, before: str, after: str) -> str:
         return resp.text
 
 
-async def list_directory(owner: str, repo: str, path: str, ref: str = None) -> list[dict]:
+async def list_directory(owner: str, repo: str, path: str, ref: str = None, token: str = None) -> list[dict]:
     """List files in a repo directory."""
     params = {}
     if ref:
@@ -83,7 +86,7 @@ async def list_directory(owner: str, repo: str, path: str, ref: str = None) -> l
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{API}/repos/{owner}/{repo}/contents/{path}",
-            headers=_headers(),
+            headers=_headers(token),
             params=params
         )
         if resp.status_code == 404:
@@ -93,7 +96,7 @@ async def list_directory(owner: str, repo: str, path: str, ref: str = None) -> l
         return data if isinstance(data, list) else [data]
 
 
-async def get_file_content(owner: str, repo: str, path: str, ref: str = None) -> str | None:
+async def get_file_content(owner: str, repo: str, path: str, ref: str = None, token: str = None) -> str | None:
     """Get decoded content of a file."""
     params = {}
     if ref:
@@ -101,7 +104,7 @@ async def get_file_content(owner: str, repo: str, path: str, ref: str = None) ->
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{API}/repos/{owner}/{repo}/contents/{path}",
-            headers=_headers(),
+            headers=_headers(token),
             params=params
         )
         if resp.status_code == 404:
@@ -113,59 +116,59 @@ async def get_file_content(owner: str, repo: str, path: str, ref: str = None) ->
         return data.get("content", "")
 
 
-async def get_all_doc_files(owner: str, repo: str, docs_path: str, ref: str = None) -> dict[str, str]:
+async def get_all_doc_files(owner: str, repo: str, docs_path: str, ref: str = None, token: str = None) -> dict[str, str]:
     """Recursively get all markdown files in docs directory. Returns {path: content}."""
     result = {}
-    await _walk_docs(owner, repo, docs_path.rstrip("/"), ref, result)
+    await _walk_docs(owner, repo, docs_path.rstrip("/"), ref, result, token)
     return result
 
 
-async def _walk_docs(owner: str, repo: str, path: str, ref: str, result: dict):
-    items = await list_directory(owner, repo, path, ref)
+async def _walk_docs(owner: str, repo: str, path: str, ref: str, result: dict, token: str = None):
+    items = await list_directory(owner, repo, path, ref, token)
     for item in items:
         if item["type"] == "dir":
-            await _walk_docs(owner, repo, item["path"], ref, result)
+            await _walk_docs(owner, repo, item["path"], ref, result, token)
         elif item["type"] == "file" and item["name"].endswith((".md", ".mdx", ".rst", ".txt")):
-            content = await get_file_content(owner, repo, item["path"], ref)
+            content = await get_file_content(owner, repo, item["path"], ref, token)
             if content:
                 result[item["path"]] = content
 
 
-async def get_tree(owner: str, repo: str, ref: str = "HEAD") -> list[dict]:
+async def get_tree(owner: str, repo: str, ref: str = "HEAD", token: str = None) -> list[dict]:
     """Get full file tree of a repo (recursive)."""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{API}/repos/{owner}/{repo}/git/trees/{ref}?recursive=1",
-            headers=_headers()
+            headers=_headers(token)
         )
         resp.raise_for_status()
         return resp.json().get("tree", [])
 
 
-async def get_default_branch_sha(owner: str, repo: str, branch: str) -> str:
+async def get_default_branch_sha(owner: str, repo: str, branch: str, token: str = None) -> str:
     """Get the latest commit SHA of a branch."""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{API}/repos/{owner}/{repo}/git/refs/heads/{branch}",
-            headers=_headers()
+            headers=_headers(token)
         )
         resp.raise_for_status()
         return resp.json()["object"]["sha"]
 
 
-async def create_branch(owner: str, repo: str, branch_name: str, from_sha: str) -> bool:
+async def create_branch(owner: str, repo: str, branch_name: str, from_sha: str, token: str = None) -> bool:
     """Create a new branch from a commit SHA."""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{API}/repos/{owner}/{repo}/git/refs",
-            headers=_headers(),
+            headers=_headers(token),
             json={"ref": f"refs/heads/{branch_name}", "sha": from_sha}
         )
         return resp.status_code == 201
 
 
 async def create_or_update_file(owner: str, repo: str, path: str, content: str,
-                                 message: str, branch: str, sha: str = None) -> dict:
+                                 message: str, branch: str, sha: str = None, token: str = None) -> dict:
     """Create or update a file in the repo."""
     payload = {
         "message": message,
@@ -178,19 +181,19 @@ async def create_or_update_file(owner: str, repo: str, path: str, content: str,
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.put(
             f"{API}/repos/{owner}/{repo}/contents/{path}",
-            headers=_headers(),
+            headers=_headers(token),
             json=payload
         )
         resp.raise_for_status()
         return resp.json()
 
 
-async def get_file_sha(owner: str, repo: str, path: str, branch: str) -> str | None:
+async def get_file_sha(owner: str, repo: str, path: str, branch: str, token: str = None) -> str | None:
     """Get the SHA of an existing file (needed for updates)."""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{API}/repos/{owner}/{repo}/contents/{path}",
-            headers=_headers(),
+            headers=_headers(token),
             params={"ref": branch}
         )
         if resp.status_code == 404:
@@ -200,12 +203,12 @@ async def get_file_sha(owner: str, repo: str, path: str, branch: str) -> str | N
 
 
 async def create_pull_request(owner: str, repo: str, title: str, body: str,
-                               head: str, base: str) -> dict:
+                               head: str, base: str, token: str = None) -> dict:
     """Create a pull request."""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{API}/repos/{owner}/{repo}/pulls",
-            headers=_headers(),
+            headers=_headers(token),
             json={"title": title, "body": body, "head": head, "base": base}
         )
         resp.raise_for_status()

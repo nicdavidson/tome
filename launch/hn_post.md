@@ -16,14 +16,12 @@ It's not a docs chatbot (there are plenty of those). It's a docs *writer*.
 - Tome *writes and maintains* docs
 - It opens PRs you can review, not just generate text
 
-**Tech stack:**
-- Python/FastAPI backend
-- LLM-powered diff analysis (xAI Grok for cost efficiency, also supports Claude and Ollama)
-- GitHub API for webhook processing, branch creation, and PR generation
-- SQLite for state, deployed on Fly.io
+**"Why not just build this yourself?"**
+
+You could wire up a webhook and an LLM call in a day. The hard part is everything else: matching your doc style, handling multi-file changes, not generating garbage PRs your team learns to ignore, scaling across repos and contributors, and keeping it running while you ship product. That's the problem space Tome lives in.
 
 **Pricing:** Starting at $9/mo with 14-day free trial. All plans include gap detection; Pro ($29/mo) adds automatic PR generation.
 
-The whole thing was built in a single afternoon. It already dogfoods itself — PR #1 on its own repo was opened by Tome analyzing its own commit: https://github.com/nicdavidson/tome/pull/1
+It dogfoods itself — PR #1 on its own repo was opened by Tome analyzing its own commit: https://github.com/nicdavidson/tome/pull/1
 
 Would love feedback on the approach. Is automated doc maintenance something your team would use?

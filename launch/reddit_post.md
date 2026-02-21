@@ -22,15 +22,17 @@ I built Tome ([tomehq.net](https://tomehq.net)) to solve a problem every team ha
 - Not a one-time doc generator
 - It's an ongoing maintenance tool — a docs engineer that never sleeps
 
-**Tech details for the curious:**
-- Python/FastAPI backend
-- Uses xAI's Grok for cost-efficient diff analysis (also supports Anthropic Claude and local Ollama)
-- GitHub REST API for webhooks, branch management, and PR creation
-- SQLite for state, deployed on Fly.io
-- The whole thing dogfoods itself — [PR #1](https://github.com/nicdavidson/tome/pull/1) was Tome analyzing its own commit
+**"Why not just write a script that does this?"**
+
+You could. The webhook + LLM call is the easy part. The hard part is:
+- Style matching across existing docs
+- Handling multi-file changes that span docs
+- Scaling across repos and contributors
+- Not generating garbage PRs your team ignores
+- Keeping it running and maintained while you ship product
+
+That's what you're paying $9/mo to not think about.
 
 **Pricing:** $9/mo starter, $29/mo for auto-PR generation, $99/mo enterprise. 14-day free trial on all plans.
-
-Repo is at [github.com/nicdavidson/tome](https://github.com/nicdavidson/tome).
 
 Would genuinely love feedback. Is this something your team would use? What would make it more useful?
