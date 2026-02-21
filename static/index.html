@@ -353,6 +353,7 @@
   <div class="container">
     <a href="/" class="logo">tome<span>.</span></a>
     <a href="#pricing" class="cta">Get Started</a>
+    <a href="https://github.com/login/oauth/authorize" class="cta" style="display:none;">Sign In</a>
   </div>
 </nav>
 
@@ -506,7 +507,7 @@
           <li>Gap detection on every push</li>
           <li>Email alerts for stale docs</li>
         </ul>
-        <a href="#" class="plan-cta-secondary">Coming Soon</a>
+        <a href="#" onclick="checkout('starter')" class="plan-cta-secondary">Start Free Trial</a>
       </div>
       <div class="plan featured">
         <div class="plan-name">Pro</div>
@@ -519,7 +520,7 @@
           <li>Full activity dashboard</li>
           <li>Webhook + API access</li>
         </ul>
-        <a href="#" class="plan-cta-primary">Start 14-Day Trial</a>
+        <a href="#" onclick="checkout('pro')" class="plan-cta-primary">Start 14-Day Trial</a>
       </div>
       <div class="plan">
         <div class="plan-name">Enterprise</div>
@@ -532,7 +533,7 @@
           <li>Custom doc templates</li>
           <li>Priority support</li>
         </ul>
-        <a href="#" class="plan-cta-secondary">Contact Us</a>
+        <a href="#" onclick="checkout('enterprise')" class="plan-cta-secondary">Start Free Trial</a>
       </div>
     </div>
   </div>
@@ -544,5 +545,33 @@
   </div>
 </footer>
 
+<script>
+async function checkout(plan) {
+  event.preventDefault();
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = 'Redirecting...';
+  btn.style.pointerEvents = 'none';
+  try {
+    const resp = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plan: plan})
+    });
+    const data = await resp.json();
+    if (data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else {
+      alert('Could not start checkout. Please try again.');
+      btn.textContent = origText;
+      btn.style.pointerEvents = '';
+    }
+  } catch (err) {
+    alert('Connection error. Please try again.');
+    btn.textContent = origText;
+    btn.style.pointerEvents = '';
+  }
+}
+</script>
 </body>
 </html>

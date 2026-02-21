@@ -25,6 +25,7 @@ from db import init_db, create_project, get_project, list_projects, log_activity
 from db import get_activity, get_gaps, get_stats, verify_api_key
 import engine
 import github_client as gh
+import billing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 log = logging.getLogger("tome")
@@ -261,3 +262,91 @@ def _verify_signature(payload: bytes, signature: str) -> bool:
         Config.GITHUB_WEBHOOK_SECRET.encode(), payload, hashlib.sha256
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
+
+
+# --- Stripe Billing ---
+
+@app.post("/api/checkout")
+async def checkout(request: Request):
+    body = await request.json()
+    plan = body.get("plan", "pro")
+    email = body.get("email")
+
+    try:
+        session = await billing.create_checkout_session(plan, email)
+        return {"checkout_url": session.get("url", "")}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        log.error("Stripe checkout error: %s", e)
+        raise HTTPException(500, "Failed to create checkout session")
+
+
+@app.post("/api/webhook/stripe")
+async def stripe_webhook(request: Request):
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+
+    if not billing.verify_webhook_signature(body, sig):
+        raise HTTPException(401, "Invalid signature")
+
+    try:
+        event = json.loads(body)
+        await billing.handle_webhook_event(event)
+        return {"status": "ok"}
+    except Exception as e:
+        log.error("Stripe webhook error: %s", e)
+        raise HTTPException(500, "Webhook processing failed")
+
+
+@app.get("/welcome", response_class=HTMLResponse)
+async def welcome(session_id: str = None):
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome to Tome</title>
+<style>
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0a0a0b; color: #e4e4e7;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; margin: 0;
+  }}
+  .card {{
+    background: #141416; border: 1px solid #1e1e22; border-radius: 16px;
+    padding: 48px; max-width: 520px; text-align: center;
+  }}
+  h1 {{ font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }}
+  h1 span {{ color: #6366f1; }}
+  p {{ color: #71717a; font-size: 16px; line-height: 1.6; margin-bottom: 24px; }}
+  .steps {{ text-align: left; margin: 24px 0; }}
+  .steps li {{
+    color: #a1a1aa; font-size: 14px; padding: 8px 0;
+    list-style: none; display: flex; align-items: center; gap: 10px;
+  }}
+  .steps li::before {{ content: "→"; color: #6366f1; font-weight: bold; }}
+  a.btn {{
+    display: inline-block; background: #6366f1; color: white;
+    padding: 14px 32px; border-radius: 8px; text-decoration: none;
+    font-weight: 600; font-size: 16px; transition: background 0.15s;
+  }}
+  a.btn:hover {{ background: #4f46e5; }}
+  .note {{ font-size: 13px; color: #52525b; margin-top: 16px; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Welcome to <span>Tome</span></h1>
+  <p>Your subscription is active. Your 14-day free trial has started.</p>
+  <ol class="steps">
+    <li>Install the Tome GitHub App on your repository</li>
+    <li>Configure your docs path and source path</li>
+    <li>Push code — Tome will open doc PRs automatically</li>
+  </ol>
+  <a href="/dashboard" class="btn">Go to Dashboard</a>
+  <p class="note">Need help? Email support@tomehq.net</p>
+</div>
+</body>
+</html>""")
