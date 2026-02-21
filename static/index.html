@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tome — Autonomous Documentation Maintenance</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --surface: #141416;
+    --border: #1e1e22;
+    --text: #e4e4e7;
+    --text-dim: #71717a;
+    --accent: #6366f1;
+    --accent-dim: #4f46e5;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  nav {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 0;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  nav .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .logo {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .logo span { color: var(--accent); }
+  nav a.cta {
+    background: var(--accent);
+    color: white;
+    padding: 8px 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+  nav a.cta:hover { background: var(--accent-dim); }
+
+  /* Hero */
+  .hero {
+    padding: 100px 0 80px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p {
+    font-size: 18px;
+    color: var(--text-dim);
+    max-width: 560px;
+    margin: 0 auto 40px;
+  }
+  .hero-cta {
+    display: inline-flex;
+    gap: 12px;
+  }
+  .hero-cta a {
+    padding: 14px 32px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--accent-dim); transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--text-dim); }
+
+  /* How it works */
+  .how-it-works {
+    padding: 80px 0;
+    border-top: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .how-it-works h2 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 48px;
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+  }
+  .step-number {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  .step h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .step p {
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  /* Demo PR */
+  .demo {
+    padding: 80px 0;
+    border-top: 1px solid var(--border);
+  }
+  .demo h2 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+  .demo > .container > p {
+    color: var(--text-dim);
+    margin-bottom: 32px;
+    font-size: 16px;
+  }
+  .pr-mock {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .pr-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pr-icon {
+    width: 16px; height: 16px;
+    background: var(--green);
+    border-radius: 50%;
+  }
+  .pr-title { font-weight: 600; font-size: 14px; }
+  .pr-tag {
+    font-size: 11px;
+    background: var(--accent);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: auto;
+  }
+  .pr-body {
+    padding: 20px;
+  }
+  .pr-body h4 { margin: 12px 0 6px; font-size: 13px; }
+  .pr-body ul { list-style: none; padding: 0; }
+  .pr-body li { padding: 2px 0; color: var(--text-dim); }
+  .pr-body li::before { content: "• "; color: var(--accent); }
+  .diff-header {
+    padding: 8px 20px;
+    background: #1a1a2e;
+    font-size: 12px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+  }
+  .diff-line {
+    padding: 1px 20px;
+    font-size: 12px;
+    white-space: pre;
+  }
+  .diff-add { background: rgba(34, 197, 94, 0.1); color: var(--green); }
+  .diff-remove { background: rgba(239, 68, 68, 0.1); color: var(--red); }
+  .diff-context { color: var(--text-dim); }
+
+  /* Pricing */
+  .pricing {
+    padding: 80px 0;
+    border-top: 1px solid var(--border);
+  }
+  .pricing h2 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 48px;
+  }
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .plan {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+  }
+  .plan.featured { border-color: var(--accent); }
+  .plan-name {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .plan-price {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    margin-bottom: 4px;
+  }
+  .plan-price span { font-size: 16px; color: var(--text-dim); font-weight: 400; }
+  .plan-desc {
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .plan ul {
+    list-style: none;
+    padding: 0;
+    flex: 1;
+    margin-bottom: 24px;
+  }
+  .plan li {
+    font-size: 14px;
+    padding: 6px 0;
+    color: var(--text-dim);
+  }
+  .plan li::before { content: "✓ "; color: var(--green); }
+  .plan a {
+    display: block;
+    text-align: center;
+    padding: 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .plan a.plan-cta-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .plan a.plan-cta-secondary {
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  /* Comparison */
+  .comparison {
+    padding: 80px 0;
+    border-top: 1px solid var(--border);
+  }
+  .comparison h2 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 32px;
+  }
+  .comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .comp-table th, .comp-table td {
+    text-align: left;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .comp-table th { color: var(--text-dim); font-weight: 500; }
+  .comp-table td:first-child { font-weight: 500; }
+  .comp-table .yes { color: var(--green); }
+  .comp-table .no { color: var(--text-dim); }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 32px; }
+    .steps, .pricing-grid { grid-template-columns: 1fr; }
+    .hero { padding: 60px 0 40px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="/" class="logo">tome<span>.</span></a>
+    <a href="#pricing" class="cta">Get Started</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <h1>Your docs are stale.<br><em>Tome fixes that.</em></h1>
+    <p>Tome watches your codebase for changes and automatically opens PRs to keep your documentation current. Not a chatbot. A docs engineer.</p>
+    <div class="hero-cta">
+      <a href="#pricing" class="btn-primary">Start Free Trial</a>
+      <a href="#demo" class="btn-secondary">See a Demo PR</a>
+    </div>
+  </div>
+</section>
+
+<section class="how-it-works">
+  <div class="container">
+    <div class="section-label">How it works</div>
+    <h2>Install. Push code. Get doc PRs.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">01</div>
+        <h3>Connect your repo</h3>
+        <p>Install the Tome GitHub App. Point it at your docs directory. Takes 30 seconds.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">02</div>
+        <h3>Push code as usual</h3>
+        <p>Tome watches every push to your default branch. When code changes need docs, it detects the gap automatically.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">03</div>
+        <h3>Review and merge</h3>
+        <p>Tome opens a PR with documentation updates that match your existing style. Review it like any other PR.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="demo" id="demo">
+  <div class="container">
+    <div class="section-label">Live example</div>
+    <h2>What a Tome PR looks like</h2>
+    <p>A developer added a new authentication endpoint. Tome noticed the docs didn't cover it.</p>
+
+    <div class="pr-mock">
+      <div class="pr-header">
+        <div class="pr-icon"></div>
+        <span class="pr-title">docs: update authentication.md</span>
+        <span class="pr-tag">tome</span>
+      </div>
+      <div class="pr-body">
+        <h4>Documentation Updates</h4>
+        <p style="color: var(--text-dim); margin-bottom: 12px;">Tome detected code changes that need documentation coverage.</p>
+        <h4>Changes Detected</h4>
+        <ul>
+          <li><strong>new_endpoint</strong> in <code>src/auth/oauth.py</code>: Added OAuth2 PKCE flow endpoint</li>
+          <li><strong>config_change</strong> in <code>src/config.py</code>: New OAUTH_REDIRECT_URI setting</li>
+        </ul>
+        <h4>Files Modified</h4>
+        <ul>
+          <li>Updated: <code>docs/authentication.md</code></li>
+        </ul>
+      </div>
+      <div class="diff-header">docs/authentication.md</div>
+      <div class="diff-line diff-context"> ## Token-Based Authentication</div>
+      <div class="diff-line diff-context"> </div>
+      <div class="diff-line diff-context"> DreamFactory supports JWT tokens for stateless auth...</div>
+      <div class="diff-line diff-context"> </div>
+      <div class="diff-line diff-add">+## OAuth2 PKCE Flow</div>
+      <div class="diff-line diff-add">+</div>
+      <div class="diff-line diff-add">+For single-page applications, use the PKCE flow:</div>
+      <div class="diff-line diff-add">+</div>
+      <div class="diff-line diff-add">+```bash</div>
+      <div class="diff-line diff-add">+POST /api/v2/oauth/authorize</div>
+      <div class="diff-line diff-add">+  code_challenge: &lt;SHA256 hash&gt;</div>
+      <div class="diff-line diff-add">+  code_challenge_method: S256</div>
+      <div class="diff-line diff-add">+```</div>
+      <div class="diff-line diff-add">+</div>
+      <div class="diff-line diff-add">+Set `OAUTH_REDIRECT_URI` in your `.env` file:</div>
+      <div class="diff-line diff-add">+</div>
+      <div class="diff-line diff-add">+```env</div>
+      <div class="diff-line diff-add">+OAUTH_REDIRECT_URI=https://yourapp.com/callback</div>
+      <div class="diff-line diff-add">+```</div>
+    </div>
+  </div>
+</section>
+
+<section class="comparison">
+  <div class="container">
+    <div class="section-label">Not another chatbot</div>
+    <h2>Tome writes docs. Others search them.</h2>
+    <table class="comp-table">
+      <tr>
+        <th></th>
+        <th>Tome</th>
+        <th>Chatbase / DocsBot</th>
+        <th>Human tech writer</th>
+      </tr>
+      <tr>
+        <td>Detects stale docs automatically</td>
+        <td class="yes">✓</td>
+        <td class="no">✗</td>
+        <td class="no">Sometimes</td>
+      </tr>
+      <tr>
+        <td>Writes documentation</td>
+        <td class="yes">✓</td>
+        <td class="no">✗</td>
+        <td class="yes">✓</td>
+      </tr>
+      <tr>
+        <td>Opens PRs you can review</td>
+        <td class="yes">✓</td>
+        <td class="no">✗</td>
+        <td class="yes">✓</td>
+      </tr>
+      <tr>
+        <td>Watches every push, 24/7</td>
+        <td class="yes">✓</td>
+        <td class="no">✗</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>Matches your doc style</td>
+        <td class="yes">✓</td>
+        <td class="no">N/A</td>
+        <td class="yes">Eventually</td>
+      </tr>
+      <tr>
+        <td>Cost per month</td>
+        <td class="yes">$299</td>
+        <td class="no">$49-99</td>
+        <td class="no">$8,000-12,000</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<section class="pricing" id="pricing">
+  <div class="container">
+    <div class="section-label">Pricing</div>
+    <h2>One repo. One price. No surprises.</h2>
+    <div class="pricing-grid">
+      <div class="plan">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">$49<span>/mo</span></div>
+        <div class="plan-desc">Doc coverage scanning and gap reports. No auto-PRs.</div>
+        <ul>
+          <li>1 repository</li>
+          <li>Weekly doc coverage reports</li>
+          <li>Gap detection on every push</li>
+          <li>Email alerts for stale docs</li>
+        </ul>
+        <a href="#" class="plan-cta-secondary">Coming Soon</a>
+      </div>
+      <div class="plan featured">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$299<span>/mo</span></div>
+        <div class="plan-desc">Autonomous doc maintenance. PRs opened automatically.</div>
+        <ul>
+          <li>Up to 5 repositories</li>
+          <li>Auto-generated doc PRs</li>
+          <li>Style matching</li>
+          <li>Full activity dashboard</li>
+          <li>Webhook + API access</li>
+        </ul>
+        <a href="#" class="plan-cta-primary">Start 14-Day Trial</a>
+      </div>
+      <div class="plan">
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-price">$499<span>/mo</span></div>
+        <div class="plan-desc">Custom model training on your docs for higher accuracy.</div>
+        <ul>
+          <li>Unlimited repositories</li>
+          <li>Fine-tuned model on your codebase</li>
+          <li>Support channel monitoring</li>
+          <li>Custom doc templates</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="#" class="plan-cta-secondary">Contact Us</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>Tome — autonomous documentation maintenance. Built by <a href="https://github.com/crucible-ai" style="color: var(--accent); text-decoration: none;">Crucible AI</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>
