@@ -210,3 +210,37 @@ async def create_pull_request(owner: str, repo: str, title: str, body: str,
         )
         resp.raise_for_status()
         return resp.json()
+
+
+async def create_webhook(owner: str, repo: str, token: str = None) -> dict:
+    """Create a webhook on the repo to receive push and PR events."""
+    webhook_url = f"{Config.BASE_URL}/api/webhook/github"
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{API}/repos/{owner}/{repo}/hooks",
+            headers=_headers(token),
+            json={
+                "name": "web",
+                "active": True,
+                "events": ["push", "pull_request"],
+                "config": {
+                    "url": webhook_url,
+                    "content_type": "json",
+                    "secret": Config.GITHUB_WEBHOOK_SECRET or "",
+                    "insecure_ssl": "0",
+                },
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def verify_repo_access(owner: str, repo: str, token: str) -> dict:
+    """Verify we can access the repo with the given token. Returns repo info or raises."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{API}/repos/{owner}/{repo}",
+            headers=_headers(token),
+        )
+        resp.raise_for_status()
+        return resp.json()

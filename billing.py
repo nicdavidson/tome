@@ -100,31 +100,28 @@ async def handle_webhook_event(event: dict):
     data = event.get("data", {}).get("object", {})
 
     if event_type == "checkout.session.completed":
-        customer_id = data.get("customer", "")
+        stripe_customer_id = data.get("customer", "")
         email = data.get("customer_email", "") or data.get("customer_details", {}).get("email", "")
         subscription_id = data.get("subscription", "")
-        log.info("New subscription: customer=%s email=%s sub=%s", customer_id, email, subscription_id)
+        log.info("New subscription: customer=%s email=%s sub=%s", stripe_customer_id, email, subscription_id)
 
-        # Store customer info in DB
         import db
-        conn = db.get_db()
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS customers (
-                id TEXT PRIMARY KEY,
-                stripe_customer_id TEXT,
-                stripe_subscription_id TEXT,
-                email TEXT,
-                plan TEXT DEFAULT 'pro',
-                status TEXT DEFAULT 'active',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        # Check if customer already exists (from onboarding)
+        existing = db.get_customer_by_email(email) if email else None
+        if existing:
+            conn = db.get_db()
+            conn.execute(
+                "UPDATE customers SET stripe_customer_id = ?, stripe_subscription_id = ? WHERE id = ?",
+                (stripe_customer_id, subscription_id, existing["id"])
             )
-        """)
-        conn.execute(
-            "INSERT OR REPLACE INTO customers (id, stripe_customer_id, stripe_subscription_id, email) VALUES (?,?,?,?)",
-            (customer_id, customer_id, subscription_id, email)
-        )
-        conn.commit()
-        conn.close()
+            conn.commit()
+            conn.close()
+        else:
+            db.create_customer(
+                email=email,
+                stripe_customer_id=stripe_customer_id,
+                stripe_subscription_id=subscription_id,
+            )
 
     elif event_type == "customer.subscription.deleted":
         subscription_id = data.get("id", "")

@@ -61,6 +61,23 @@ def init_db():
         name TEXT DEFAULT 'default',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY,
+        email TEXT,
+        stripe_customer_id TEXT,
+        stripe_subscription_id TEXT,
+        github_token TEXT,
+        plan TEXT DEFAULT 'pro',
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS project_customers (
+        project_id TEXT REFERENCES projects(id),
+        customer_id TEXT REFERENCES customers(id),
+        PRIMARY KEY (project_id, customer_id)
+    );
     """)
     conn.commit()
     conn.close()
@@ -174,7 +191,17 @@ def get_stats() -> dict:
     prs = conn.execute("SELECT COUNT(*) as c FROM gaps WHERE pr_url IS NOT NULL").fetchone()["c"]
     resolved = conn.execute("SELECT COUNT(*) as c FROM gaps WHERE status = 'resolved'").fetchone()["c"]
     conn.close()
-    return {"projects": projects, "gaps_found": gaps, "prs_opened": prs, "gaps_resolved": resolved}
+    return {
+        "total_projects": projects,
+        "total_gaps": gaps,
+        "total_prs": prs,
+        "total_resolved": resolved,
+        # Legacy keys for API compat
+        "projects": projects,
+        "gaps_found": gaps,
+        "prs_opened": prs,
+        "gaps_resolved": resolved,
+    }
 
 
 def verify_api_key(key: str) -> str | None:
@@ -182,3 +209,56 @@ def verify_api_key(key: str) -> str | None:
     row = conn.execute("SELECT project_id FROM api_keys WHERE key = ?", (key,)).fetchone()
     conn.close()
     return row["project_id"] if row else None
+
+
+def create_customer(email: str, stripe_customer_id: str = None, stripe_subscription_id: str = None, plan: str = "pro") -> dict:
+    customer_id = str(uuid.uuid4())[:8]
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO customers (id, email, stripe_customer_id, stripe_subscription_id, plan) VALUES (?,?,?,?,?)",
+        (customer_id, email, stripe_customer_id, stripe_subscription_id, plan)
+    )
+    conn.commit()
+    conn.close()
+    return {"id": customer_id, "email": email, "plan": plan}
+
+
+def get_customer_by_email(email: str) -> dict | None:
+    conn = get_db()
+    row = conn.execute("SELECT * FROM customers WHERE email = ? AND status = 'active'", (email,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_customer_by_stripe_id(stripe_customer_id: str) -> dict | None:
+    conn = get_db()
+    row = conn.execute("SELECT * FROM customers WHERE stripe_customer_id = ?", (stripe_customer_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_customer_github_token(customer_id: str, github_token: str):
+    conn = get_db()
+    conn.execute("UPDATE customers SET github_token = ? WHERE id = ?", (github_token, customer_id))
+    conn.commit()
+    conn.close()
+
+
+def link_project_to_customer(project_id: str, customer_id: str):
+    conn = get_db()
+    conn.execute("INSERT OR IGNORE INTO project_customers (project_id, customer_id) VALUES (?,?)",
+                 (project_id, customer_id))
+    conn.commit()
+    conn.close()
+
+
+def get_customer_projects(customer_id: str) -> list[dict]:
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT p.* FROM projects p
+        JOIN project_customers pc ON p.id = pc.project_id
+        WHERE pc.customer_id = ? AND p.status = 'active'
+        ORDER BY p.created_at DESC
+    """, (customer_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

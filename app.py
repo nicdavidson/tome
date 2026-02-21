@@ -21,8 +21,10 @@ from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from config import Config
-from db import init_db, create_project, get_project, list_projects, log_activity
-from db import get_activity, get_gaps, get_stats, verify_api_key
+from db import (init_db, create_project, get_project, list_projects, log_activity,
+                get_activity, get_gaps, get_stats, verify_api_key,
+                create_customer, get_customer_by_email, update_customer_github_token,
+                link_project_to_customer, get_customer_projects)
 import engine
 import github_client as gh
 import billing
@@ -204,7 +206,7 @@ async def dashboard():
         </tr>"""
 
     if not projects:
-        project_rows = '<tr><td colspan="3" style="color: #71717a; text-align: center; padding: 32px;">No projects yet. Use the API to create one.</td></tr>'
+        project_rows = '<tr><td colspan="3" style="color: #71717a; text-align: center; padding: 32px;">No projects yet. <a href="/welcome" style="color: #6366f1;">Connect a repo →</a></td></tr>'
 
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
@@ -270,7 +272,11 @@ async def dashboard():
 <nav>
   <div class="container">
     <a href="/" class="logo">tome<span>.</span></a>
-    <span style="color: #71717a; font-size: 14px;">Dashboard</span>
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <a href="/welcome" style="color: #6366f1; text-decoration: none; font-size: 14px;">+ Add Repo</a>
+      <span style="color: #1e1e22;">|</span>
+      <span style="color: #71717a; font-size: 14px;">Dashboard</span>
+    </div>
   </div>
 </nav>
 <div class="container">
@@ -296,13 +302,12 @@ async def dashboard():
   </table>
 
   <div class="api-box">
-    <strong style="color: #e4e4e7;">Quick Start</strong><br><br>
-    Create a project:<br>
-    <code>curl -X POST {Config.BASE_URL}/api/projects \\<br>
-    &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
-    &nbsp;&nbsp;-d '{{"name": "My Project", "github_owner": "org", "github_repo": "repo"}}'</code><br><br>
-    Trigger a scan:<br>
-    <code>curl -X POST {Config.BASE_URL}/api/projects/{{id}}/scan</code>
+    <strong style="color: #e4e4e7;">API Access</strong><br><br>
+    Trigger a manual scan:<br>
+    <code>curl -X POST {Config.BASE_URL}/api/projects/PROJECT_ID/scan</code><br><br>
+    View documentation gaps:<br>
+    <code>curl {Config.BASE_URL}/api/projects/PROJECT_ID/gaps</code><br><br>
+    <a href="{Config.BASE_URL}/api/health" style="color: #6366f1; text-decoration: none; font-size: 12px;">API Health →</a>
   </div>
 </div>
 </body>
@@ -541,6 +546,74 @@ async def checkout(request: Request):
         raise HTTPException(500, "Failed to create checkout session")
 
 
+@app.post("/api/onboard")
+async def onboard(request: Request, background_tasks: BackgroundTasks):
+    """Full onboarding: verify repo access, create project, set up webhook, run initial scan."""
+    body = await request.json()
+
+    required = ["email", "github_owner", "github_repo", "github_token"]
+    for field in required:
+        if not body.get(field):
+            raise HTTPException(400, f"Missing required field: {field}")
+
+    owner = body["github_owner"].strip()
+    repo = body["github_repo"].strip()
+    token = body["github_token"].strip()
+    email = body["email"].strip()
+
+    # 1. Verify repo access
+    try:
+        repo_info = await gh.verify_repo_access(owner, repo, token)
+    except Exception as e:
+        log.warning("Repo access failed for %s/%s: %s", owner, repo, e)
+        raise HTTPException(400, f"Cannot access {owner}/{repo}. Check your token has 'repo' scope.")
+
+    # 2. Create or find customer
+    customer = get_customer_by_email(email)
+    if not customer:
+        customer = create_customer(email=email)
+
+    # 3. Store their GitHub token
+    update_customer_github_token(customer["id"], token)
+
+    # 4. Create the project
+    default_branch = body.get("default_branch", repo_info.get("default_branch", "main"))
+    result = create_project(
+        name=repo_info.get("full_name", f"{owner}/{repo}"),
+        owner=owner,
+        repo=repo,
+        docs_paths=body.get("docs_paths", "docs/"),
+        source_paths=body.get("source_paths", "src/"),
+        default_branch=default_branch,
+    )
+
+    # 5. Link project to customer
+    link_project_to_customer(result["id"], customer["id"])
+
+    # 6. Set up webhook on the repo
+    webhook_ok = False
+    try:
+        await gh.create_webhook(owner, repo, token)
+        webhook_ok = True
+    except Exception as e:
+        log.warning("Webhook creation failed for %s/%s: %s (may already exist)", owner, repo, e)
+        # Not fatal — they may have already set it up, or can do it manually
+
+    log_activity(result["id"], "project_onboarded",
+                 f"Project onboarded by {email}. Webhook: {'OK' if webhook_ok else 'manual setup needed'}")
+
+    # 7. Kick off initial scan in background
+    background_tasks.add_task(engine.scan_repo, result["id"])
+
+    log.info("Onboarded: %s/%s for %s (project=%s)", owner, repo, email, result["id"])
+    return {
+        "project_id": result["id"],
+        "api_key": result["api_key"],
+        "webhook": "configured" if webhook_ok else "manual_setup_needed",
+        "scan": "started",
+    }
+
+
 @app.post("/api/webhook/stripe")
 async def stripe_webhook(request: Request):
     body = await request.body()
@@ -560,52 +633,169 @@ async def stripe_webhook(request: Request):
 
 @app.get("/welcome", response_class=HTMLResponse)
 async def welcome(session_id: str = None):
+    # Try to look up customer email from Stripe session
+    email = ""
+    if session_id:
+        try:
+            session = await billing.get_session(session_id)
+            email = session.get("customer_email", "") or session.get("customer_details", {}).get("email", "")
+        except Exception:
+            pass
+
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Welcome to Tome</title>
+<title>Welcome to Tome — Connect Your Repo</title>
 <style>
   body {{
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    background: #0a0a0b; color: #e4e4e7;
-    display: flex; align-items: center; justify-content: center;
-    min-height: 100vh; margin: 0;
+    background: #0a0a0b; color: #e4e4e7; margin: 0;
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
   }}
   .card {{
     background: #141416; border: 1px solid #1e1e22; border-radius: 16px;
-    padding: 48px; max-width: 520px; text-align: center;
+    padding: 48px; max-width: 560px; width: 100%;
   }}
-  h1 {{ font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }}
+  h1 {{ font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }}
   h1 span {{ color: #6366f1; }}
-  p {{ color: #71717a; font-size: 16px; line-height: 1.6; margin-bottom: 24px; }}
-  .steps {{ text-align: left; margin: 24px 0; }}
-  .steps li {{
-    color: #a1a1aa; font-size: 14px; padding: 8px 0;
-    list-style: none; display: flex; align-items: center; gap: 10px;
+  .subtitle {{ color: #71717a; font-size: 15px; margin-bottom: 32px; }}
+  .step-indicator {{
+    display: flex; gap: 8px; margin-bottom: 24px;
   }}
-  .steps li::before {{ content: "→"; color: #6366f1; font-weight: bold; }}
-  a.btn {{
+  .step-dot {{
+    width: 8px; height: 8px; border-radius: 50%; background: #1e1e22;
+  }}
+  .step-dot.active {{ background: #6366f1; }}
+  label {{
+    display: block; font-size: 13px; font-weight: 600; color: #a1a1aa;
+    margin-bottom: 6px; margin-top: 16px;
+  }}
+  input, select {{
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid #1e1e22; background: #0a0a0b; color: #e4e4e7;
+    font-size: 14px; font-family: inherit; box-sizing: border-box;
+  }}
+  input:focus, select:focus {{
+    outline: none; border-color: #6366f1;
+  }}
+  input::placeholder {{ color: #52525b; }}
+  .help {{ font-size: 12px; color: #52525b; margin-top: 4px; }}
+  .help a {{ color: #6366f1; text-decoration: none; }}
+  button {{
+    width: 100%; padding: 14px; border-radius: 8px; border: none;
+    background: #6366f1; color: white; font-size: 16px; font-weight: 600;
+    cursor: pointer; margin-top: 24px; transition: background 0.15s;
+    font-family: inherit;
+  }}
+  button:hover {{ background: #4f46e5; }}
+  button:disabled {{ background: #27272a; color: #52525b; cursor: not-allowed; }}
+  .error {{ color: #ef4444; font-size: 13px; margin-top: 8px; display: none; }}
+  .success {{ display: none; text-align: center; }}
+  .success h2 {{ font-size: 24px; font-weight: 700; margin-bottom: 12px; }}
+  .success p {{ color: #71717a; font-size: 15px; margin-bottom: 24px; }}
+  .success a {{
     display: inline-block; background: #6366f1; color: white;
-    padding: 14px 32px; border-radius: 8px; text-decoration: none;
-    font-weight: 600; font-size: 16px; transition: background 0.15s;
+    padding: 12px 28px; border-radius: 8px; text-decoration: none;
+    font-weight: 600;
   }}
-  a.btn:hover {{ background: #4f46e5; }}
-  .note {{ font-size: 13px; color: #52525b; margin-top: 16px; }}
+  .row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>Welcome to <span>Tome</span></h1>
-  <p>Your subscription is active. Your 14-day free trial has started.</p>
-  <ol class="steps">
-    <li>Install the Tome GitHub App on your repository</li>
-    <li>Configure your docs path and source path</li>
-    <li>Push code — Tome will open doc PRs automatically</li>
-  </ol>
-  <a href="/dashboard" class="btn">Go to Dashboard</a>
-  <p class="note">Need help? Email support@tomehq.net</p>
+  <div id="form-view">
+    <h1>Welcome to <span>Tome</span></h1>
+    <p class="subtitle">Connect your repository to start autonomous doc maintenance.</p>
+    <div class="step-indicator">
+      <div class="step-dot active"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+    </div>
+
+    <form id="onboard-form" onsubmit="return submitOnboarding(event)">
+      <label>Email</label>
+      <input type="email" name="email" placeholder="you@company.com" value="{email}" required>
+
+      <label>GitHub Repository</label>
+      <div class="row">
+        <input type="text" name="github_owner" placeholder="owner / org" required>
+        <input type="text" name="github_repo" placeholder="repository" required>
+      </div>
+
+      <label>GitHub Personal Access Token</label>
+      <input type="password" name="github_token" placeholder="ghp_..." required>
+      <p class="help">Needs <code>repo</code> scope. <a href="https://github.com/settings/tokens/new?scopes=repo&description=Tome" target="_blank">Create one here →</a></p>
+
+      <div class="row">
+        <div>
+          <label>Docs Path</label>
+          <input type="text" name="docs_paths" value="docs/" placeholder="docs/">
+        </div>
+        <div>
+          <label>Source Path</label>
+          <input type="text" name="source_paths" value="src/" placeholder="src/">
+        </div>
+      </div>
+
+      <label>Default Branch</label>
+      <input type="text" name="default_branch" value="main" placeholder="main">
+
+      <div class="error" id="error-msg"></div>
+      <button type="submit" id="submit-btn">Connect Repository</button>
+    </form>
+  </div>
+
+  <div class="success" id="success-view">
+    <h2>You're all set!</h2>
+    <p>Tome is now watching your repo. Push code and we'll open PRs when docs need updating.</p>
+    <p style="color: #52525b; font-size: 13px; margin-bottom: 16px;" id="project-info"></p>
+    <a href="/dashboard">Go to Dashboard</a>
+  </div>
 </div>
+
+<script>
+async function submitOnboarding(e) {{
+  e.preventDefault();
+  const form = e.target;
+  const btn = document.getElementById('submit-btn');
+  const errEl = document.getElementById('error-msg');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Connecting...';
+
+  const data = {{
+    email: form.email.value,
+    github_owner: form.github_owner.value,
+    github_repo: form.github_repo.value,
+    github_token: form.github_token.value,
+    docs_paths: form.docs_paths.value,
+    source_paths: form.source_paths.value,
+    default_branch: form.default_branch.value,
+  }};
+
+  try {{
+    const resp = await fetch('/api/onboard', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify(data)
+    }});
+    const result = await resp.json();
+    if (!resp.ok) {{
+      throw new Error(result.detail || 'Setup failed');
+    }}
+    document.getElementById('form-view').style.display = 'none';
+    document.getElementById('success-view').style.display = 'block';
+    document.getElementById('project-info').textContent =
+      'Project ID: ' + result.project_id + ' | API Key: ' + result.api_key;
+  }} catch (err) {{
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Connect Repository';
+  }}
+}}
+</script>
 </body>
 </html>""")
