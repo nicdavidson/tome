@@ -33,6 +33,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 log = logging.getLogger("tome")
 
 app = FastAPI(title="Tome", description="Autonomous documentation maintenance", version="0.1.0")
+app.mount("/static", StaticFiles(directory=Config.STATIC_DIR), name="static")
 
 
 @app.on_event("startup")
