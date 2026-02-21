@@ -50,6 +50,28 @@ async def landing():
         return HTMLResponse("<h1>Tome</h1><p>Landing page not found.</p>")
 
 
+# --- SEO ---
+
+@app.get("/robots.txt")
+async def robots():
+    return JSONResponse(
+        content="User-agent: *\nAllow: /\nSitemap: https://tomehq.net/sitemap.xml",
+        media_type="text/plain"
+    )
+
+@app.get("/sitemap.xml")
+async def sitemap():
+    return JSONResponse(
+        content="""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://tomehq.net/</loc><priority>1.0</priority></url>
+  <url><loc>https://tomehq.net/terms</loc><priority>0.3</priority></url>
+  <url><loc>https://tomehq.net/privacy</loc><priority>0.3</priority></url>
+</urlset>""",
+        media_type="application/xml"
+    )
+
+
 # --- Legal pages ---
 
 @app.get("/terms", response_class=HTMLResponse)
