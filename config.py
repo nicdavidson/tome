@@ -30,8 +30,8 @@ class Config:
     STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
     STRIPE_PRICES = {
-        "starter": os.getenv("STRIPE_PRICE_STARTER", "price_1T34JQEy0xJzw2UF59MTcJ8Z"),
-        "pro": os.getenv("STRIPE_PRICE_PRO", "price_1T34JQEy0xJzw2UFNx8yV2EI"),
-        "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_1T34JREy0xJzw2UFixi31mmj"),
+        "starter": os.getenv("STRIPE_PRICE_STARTER", "price_1T34VjEy0xJzw2UFhpb5i5rB"),
+        "pro": os.getenv("STRIPE_PRICE_PRO", "price_1T34VjEy0xJzw2UFaqaashE1"),
+        "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_1T34VkEy0xJzw2UFiIkcY7wZ"),
     }
     BASE_URL = os.getenv("TOME_BASE_URL", "https://tomehq.net")

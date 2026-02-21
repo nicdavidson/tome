@@ -50,6 +50,243 @@ async def landing():
         return HTMLResponse("<h1>Tome</h1><p>Landing page not found.</p>")
 
 
+# --- Legal pages ---
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms():
+    return HTMLResponse(_legal_page("Terms of Service", """
+<p><strong>Last updated:</strong> February 20, 2026</p>
+<p>These Terms of Service govern your use of Tome ("the Service"), operated by Crucible AI.</p>
+
+<h2>1. Service Description</h2>
+<p>Tome is an autonomous documentation maintenance service that monitors code repositories and generates documentation updates via pull requests.</p>
+
+<h2>2. Account Terms</h2>
+<p>You must provide a valid email address and GitHub account to use the Service. You are responsible for maintaining the security of your account credentials. You must be 18 years or older to use this Service.</p>
+
+<h2>3. Payment Terms</h2>
+<p>Paid plans are billed monthly via Stripe. All plans include a 14-day free trial. You may cancel at any time through the Stripe customer portal. Refunds are handled on a case-by-case basis.</p>
+
+<h2>4. Acceptable Use</h2>
+<p>You agree not to misuse the Service. This includes attempting to access repositories you don't own, reverse-engineering the Service, or using it for any unlawful purpose.</p>
+
+<h2>5. Data & Repository Access</h2>
+<p>Tome accesses your repositories through GitHub's API using the permissions you grant. We read code diffs, documentation files, and file trees. We do not store your source code beyond what is needed for diff analysis (typically cached for less than 60 seconds).</p>
+
+<h2>6. Service Availability</h2>
+<p>We aim for high availability but do not guarantee uptime. The Service is provided "as is" without warranties of any kind.</p>
+
+<h2>7. Limitation of Liability</h2>
+<p>Crucible AI shall not be liable for any indirect, incidental, or consequential damages arising from your use of the Service. Our total liability is limited to the amount you paid for the Service in the 12 months preceding the claim.</p>
+
+<h2>8. Changes to Terms</h2>
+<p>We may update these terms. Continued use after changes constitutes acceptance. We will notify users of material changes via email.</p>
+
+<h2>9. Contact</h2>
+<p>Questions? Email <a href="mailto:support@tomehq.net" style="color: #6366f1;">support@tomehq.net</a></p>
+"""))
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy():
+    return HTMLResponse(_legal_page("Privacy Policy", """
+<p><strong>Last updated:</strong> February 20, 2026</p>
+<p>This Privacy Policy describes how Crucible AI ("we") collects, uses, and protects your information when you use Tome ("the Service").</p>
+
+<h2>1. Information We Collect</h2>
+<ul>
+<li><strong>Account information:</strong> Email address, GitHub username</li>
+<li><strong>Payment information:</strong> Processed by Stripe. We do not store credit card numbers.</li>
+<li><strong>Repository data:</strong> Code diffs, file trees, and documentation content accessed via GitHub API during analysis. This data is processed transiently and not stored long-term.</li>
+<li><strong>Usage data:</strong> API requests, scan results, documentation gaps detected</li>
+</ul>
+
+<h2>2. How We Use Your Information</h2>
+<ul>
+<li>To provide and improve the Service</li>
+<li>To process payments</li>
+<li>To communicate about your account and service updates</li>
+<li>To detect and prevent abuse</li>
+</ul>
+
+<h2>3. Data Sharing</h2>
+<p>We do not sell your data. We share data only with:</p>
+<ul>
+<li><strong>Stripe</strong> for payment processing</li>
+<li><strong>GitHub</strong> for repository access (using your granted permissions)</li>
+<li><strong>LLM providers</strong> (xAI/Anthropic) for diff analysis — code snippets are sent for analysis but not stored by us beyond the request</li>
+</ul>
+
+<h2>4. Data Retention</h2>
+<p>Account data is retained while your account is active. Code diffs are processed transiently. Activity logs and gap reports are retained for the lifetime of your project. You may request deletion by contacting us.</p>
+
+<h2>5. Security</h2>
+<p>We use HTTPS encryption, secure API key storage, and follow security best practices. Repository access tokens are stored encrypted.</p>
+
+<h2>6. Your Rights</h2>
+<p>You may request access to, correction of, or deletion of your personal data at any time by emailing <a href="mailto:support@tomehq.net" style="color: #6366f1;">support@tomehq.net</a>.</p>
+
+<h2>7. Changes</h2>
+<p>We may update this policy. We will notify users of material changes via email.</p>
+
+<h2>8. Contact</h2>
+<p>Questions? Email <a href="mailto:support@tomehq.net" style="color: #6366f1;">support@tomehq.net</a></p>
+"""))
+
+
+def _legal_page(title: str, content: str) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title} — Tome</title>
+<style>
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0a0a0b; color: #e4e4e7; line-height: 1.7; margin: 0;
+  }}
+  .container {{ max-width: 720px; margin: 0 auto; padding: 48px 24px; }}
+  a.back {{ color: #6366f1; text-decoration: none; font-size: 14px; }}
+  h1 {{ font-size: 32px; font-weight: 800; letter-spacing: -1px; margin: 24px 0; }}
+  h2 {{ font-size: 18px; font-weight: 600; margin: 32px 0 8px; color: #e4e4e7; }}
+  p, li {{ color: #a1a1aa; font-size: 15px; }}
+  ul {{ padding-left: 20px; }}
+  li {{ margin: 4px 0; }}
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back">← Back to Tome</a>
+  <h1>{title}</h1>
+  {content}
+</div>
+</body>
+</html>"""
+
+
+# --- Dashboard ---
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    projects = list_projects()
+    stats = get_stats()
+
+    project_rows = ""
+    for p in projects:
+        project_rows += f"""
+        <tr>
+          <td><a href="/api/projects/{p['id']}" style="color: #6366f1; text-decoration: none;">{p['name']}</a></td>
+          <td style="color: #71717a;">{p['github_owner']}/{p['github_repo']}</td>
+          <td><span style="color: #22c55e;">{p['status']}</span></td>
+        </tr>"""
+
+    if not projects:
+        project_rows = '<tr><td colspan="3" style="color: #71717a; text-align: center; padding: 32px;">No projects yet. Use the API to create one.</td></tr>'
+
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Tome</title>
+<style>
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0a0a0b; color: #e4e4e7; margin: 0;
+  }}
+  .container {{ max-width: 960px; margin: 0 auto; padding: 32px 24px; }}
+  nav {{
+    border-bottom: 1px solid #1e1e22; padding: 16px 0;
+    background: #0a0a0b;
+  }}
+  nav .container {{
+    display: flex; justify-content: space-between; align-items: center;
+  }}
+  .logo {{
+    font-size: 20px; font-weight: 700; letter-spacing: -0.5px;
+    color: #e4e4e7; text-decoration: none;
+  }}
+  .logo span {{ color: #6366f1; }}
+  .stats {{
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin: 32px 0;
+  }}
+  .stat {{
+    background: #141416; border: 1px solid #1e1e22; border-radius: 12px;
+    padding: 24px;
+  }}
+  .stat-value {{
+    font-size: 36px; font-weight: 800; letter-spacing: -1px;
+  }}
+  .stat-label {{ font-size: 13px; color: #71717a; margin-top: 4px; }}
+  h2 {{
+    font-size: 20px; font-weight: 700; margin: 32px 0 16px;
+  }}
+  table {{
+    width: 100%; border-collapse: collapse; font-size: 14px;
+    background: #141416; border: 1px solid #1e1e22; border-radius: 12px;
+    overflow: hidden;
+  }}
+  th {{
+    text-align: left; padding: 12px 16px; color: #71717a;
+    font-weight: 500; border-bottom: 1px solid #1e1e22;
+  }}
+  td {{
+    padding: 12px 16px; border-bottom: 1px solid #1e1e22;
+  }}
+  .api-box {{
+    background: #141416; border: 1px solid #1e1e22; border-radius: 12px;
+    padding: 20px; margin-top: 24px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: 13px;
+    color: #a1a1aa;
+  }}
+  .api-box code {{ color: #6366f1; }}
+</style>
+</head>
+<body>
+<nav>
+  <div class="container">
+    <a href="/" class="logo">tome<span>.</span></a>
+    <span style="color: #71717a; font-size: 14px;">Dashboard</span>
+  </div>
+</nav>
+<div class="container">
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">{stats.get('total_projects', 0)}</div>
+      <div class="stat-label">Projects</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{stats.get('total_gaps', 0)}</div>
+      <div class="stat-label">Gaps Detected</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{stats.get('total_prs', 0)}</div>
+      <div class="stat-label">PRs Opened</div>
+    </div>
+  </div>
+
+  <h2>Projects</h2>
+  <table>
+    <tr><th>Name</th><th>Repository</th><th>Status</th></tr>
+    {project_rows}
+  </table>
+
+  <div class="api-box">
+    <strong style="color: #e4e4e7;">Quick Start</strong><br><br>
+    Create a project:<br>
+    <code>curl -X POST {Config.BASE_URL}/api/projects \\<br>
+    &nbsp;&nbsp;-H "Content-Type: application/json" \\<br>
+    &nbsp;&nbsp;-d '{{"name": "My Project", "github_owner": "org", "github_repo": "repo"}}'</code><br><br>
+    Trigger a scan:<br>
+    <code>curl -X POST {Config.BASE_URL}/api/projects/{{id}}/scan</code>
+  </div>
+</div>
+</body>
+</html>""")
+
+
 # --- Health & Stats ---
 
 @app.get("/api/health")
