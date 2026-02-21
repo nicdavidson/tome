@@ -21,9 +21,11 @@ log = logging.getLogger("tome.engine")
 
 
 async def llm_generate(prompt: str, json_mode: bool = False) -> str:
-    """Call configured LLM backend (Anthropic or Ollama)."""
+    """Call configured LLM backend (Anthropic, xAI, or Ollama)."""
     if Config.LLM_BACKEND == "anthropic":
         return await _anthropic_generate(prompt, json_mode)
+    if Config.LLM_BACKEND == "xai":
+        return await _xai_generate(prompt, json_mode)
     return await _ollama_generate(prompt, json_mode)
 
 
@@ -50,6 +52,31 @@ async def _anthropic_generate(prompt: str, json_mode: bool = False) -> str:
         data = resp.json()
         text_blocks = [b["text"] for b in data.get("content", []) if b.get("type") == "text"]
         return "\n".join(text_blocks)
+
+
+async def _xai_generate(prompt: str, json_mode: bool = False) -> str:
+    """Call xAI Grok API (OpenAI-compatible)."""
+    messages = [{"role": "user", "content": prompt}]
+    payload = {
+        "model": Config.XAI_MODEL,
+        "max_tokens": 4096,
+        "messages": messages,
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(
+            "https://api.x.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {Config.XAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
 
 
 async def _ollama_generate(prompt: str, json_mode: bool = False) -> str:

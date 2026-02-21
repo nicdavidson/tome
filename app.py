@@ -59,6 +59,9 @@ async def health():
     if Config.LLM_BACKEND == "anthropic":
         llm_status = "configured" if Config.ANTHROPIC_API_KEY else "missing_key"
         model = Config.ANTHROPIC_MODEL
+    elif Config.LLM_BACKEND == "xai":
+        llm_status = "configured" if Config.XAI_API_KEY else "missing_key"
+        model = Config.XAI_MODEL
     else:
         try:
             import httpx
